@@ -50,14 +50,17 @@ func NewInteractiveMode(cfg *config.Config, log *logger.Logger) *InteractiveMode
 
 // Run starts the interactive mode
 func (im *InteractiveMode) Run() error {
-	p := tea.NewProgram(im, tea.WithAltScreen())
+	p := tea.NewProgram(im, 
+		tea.WithAltScreen(), 
+		tea.WithMouseCellMotion(),
+	)
 	_, err := p.Run()
 	return err
 }
 
 // Init implements tea.Model
 func (im *InteractiveMode) Init() tea.Cmd {
-	return nil
+	return tea.EnterAltScreen
 }
 
 // Update implements tea.Model
@@ -66,11 +69,13 @@ func (im *InteractiveMode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		im.width = msg.Width
 		im.height = msg.Height
+		// Account for header (1), status (1), command line (1), and some padding (3)
 		if msg.Height > 6 {
-			im.maxLines = msg.Height - 6 // Account for header, status, and command line
+			im.maxLines = msg.Height - 6
 		} else {
 			im.maxLines = 1 // Minimum of 1 line
 		}
+		im.log.Debug("Window resized", "width", im.width, "height", im.height, "maxLines", im.maxLines)
 
 	case tea.KeyMsg:
 		return im.handleKeyPress(msg)
@@ -103,12 +108,25 @@ func (im *InteractiveMode) View() string {
 	if im.cfg.ActiveProfile != "" {
 		profile = im.cfg.ActiveProfile
 	}
-	header := headerStyle.Render(fmt.Sprintf("Kim - Kafka Management Tool | Profile: %s | View: %s", profile, im.currentView))
+	headerText := fmt.Sprintf("Kim - Kafka Management Tool | Profile: %s | View: %s", profile, im.currentView)
+	
+	// Truncate header if too long for terminal width
+	if im.width > 0 && len(headerText) > im.width-4 {
+		headerText = headerText[:im.width-7] + "..."
+	}
+	
+	header := headerStyle.Width(im.width).Render(headerText)
 
 	// Build content with scrolling
 	contentLines := strings.Split(im.content, "\n")
 	visibleLines := im.getVisibleContent(contentLines)
 	content := strings.Join(visibleLines, "\n")
+	
+	// Ensure content fits within terminal width
+	if im.width > 0 {
+		contentStyle := lipgloss.NewStyle().Width(im.width - 2).MaxWidth(im.width - 2)
+		content = contentStyle.Render(content)
+	}
 
 	// Build status bar
 	scrollInfo := ""
@@ -118,16 +136,24 @@ func (im *InteractiveMode) View() string {
 			min(im.scrollOffset+im.maxLines, len(contentLines)),
 			len(contentLines))
 	}
-	status := statusStyle.Render(im.statusMsg + scrollInfo)
+	statusText := im.statusMsg + scrollInfo
+	if im.width > 0 && len(statusText) > im.width-4 {
+		statusText = statusText[:im.width-7] + "..."
+	}
+	status := statusStyle.Width(im.width).Render(statusText)
 
 	// Build command line
 	commandLine := ""
 	if im.commandMode {
-		commandLine = commandStyle.Render(":" + im.currentCmd)
+		commandLine = commandStyle.Width(im.width).Render(":" + im.currentCmd)
 	} else if im.searchMode {
-		commandLine = commandStyle.Render("/" + im.searchPattern)
+		commandLine = commandStyle.Width(im.width).Render("/" + im.searchPattern)
 	} else {
-		commandLine = commandStyle.Render("Press ':' for commands, '/' to search, 'q' to quit")
+		helpText := "Press ':' for commands, '/' to search, 'q' to quit"
+		if im.width > 0 && len(helpText) > im.width-4 {
+			helpText = "':' cmd, '/' search, 'q' quit"
+		}
+		commandLine = commandStyle.Width(im.width).Render(helpText)
 	}
 
 	// Combine all parts
@@ -203,24 +229,41 @@ func (im *InteractiveMode) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 func (im *InteractiveMode) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		cmd := im.currentCmd
+		cmd := strings.TrimSpace(im.currentCmd)
 		im.commandMode = false
 		im.currentCmd = ""
-		return im.executeCommand(cmd)
-
-	case "esc":
-		im.commandMode = false
-		im.currentCmd = ""
+		if cmd != "" {
+			return im.executeCommand(cmd)
+		}
 		return im, nil
 
-	case "backspace":
+	case "esc", "ctrl+c":
+		im.commandMode = false
+		im.currentCmd = ""
+		im.statusMsg = "Command cancelled"
+		return im, nil
+
+	case "backspace", "ctrl+h":
 		if len(im.currentCmd) > 0 {
 			im.currentCmd = im.currentCmd[:len(im.currentCmd)-1]
 		}
 		return im, nil
 
+	case "ctrl+u": // Clear entire command line
+		im.currentCmd = ""
+		return im, nil
+
+	case "ctrl+w": // Delete word
+		words := strings.Fields(im.currentCmd)
+		if len(words) > 0 {
+			words = words[:len(words)-1]
+			im.currentCmd = strings.Join(words, " ")
+		}
+		return im, nil
+
 	default:
-		if len(msg.String()) == 1 {
+		// Only add printable characters
+		if len(msg.String()) == 1 && msg.String()[0] >= 32 && msg.String()[0] <= 126 {
 			im.currentCmd += msg.String()
 		}
 		return im, nil
@@ -258,35 +301,50 @@ func (im *InteractiveMode) handleSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 
 // executeCommand executes a command
 func (im *InteractiveMode) executeCommand(cmd string) (tea.Model, tea.Cmd) {
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" {
+		return im, nil
+	}
+	
 	parts := strings.Fields(cmd)
 	if len(parts) == 0 {
 		return im, nil
 	}
 
+	im.log.Debug("Executing command", "cmd", cmd, "parts", parts)
+
 	switch parts[0] {
-	case "q", "quit":
+	case "q", "quit", "exit":
 		return im, tea.Quit
 
-	case "help":
+	case "help", "h":
 		im.currentView = "help"
 		im.content = getHelpContent()
 		im.statusMsg = "Showing help"
 		im.scrollOffset = 0
 
-	case "topics":
+	case "topics", "t":
 		return im.showTopics()
 
-	case "groups":
+	case "groups", "g":
 		return im.showGroups()
 
-	case "profile":
+	case "profile", "p":
 		if len(parts) > 1 {
 			return im.handleProfileCommand(parts[1:])
 		}
 		return im.showProfiles()
 
+	case "refresh", "r":
+		return im.refreshCurrentView()
+
+	case "clear", "c":
+		im.content = ""
+		im.statusMsg = "Screen cleared"
+		im.scrollOffset = 0
+
 	default:
-		im.statusMsg = fmt.Sprintf("Unknown command: %s", parts[0])
+		im.statusMsg = fmt.Sprintf("Unknown command: %s. Type 'help' for available commands.", parts[0])
 	}
 
 	return im, nil
@@ -549,12 +607,15 @@ func getHelpContent() string {
 ============================
 
 COMMANDS:
-  :help                 Show this help
-  :topics               List all topics
-  :groups               List consumer groups
-  :profile list         List profiles
+  :help, :h             Show this help
+  :topics, :t           List all topics
+  :groups, :g           List consumer groups
+  :profile, :p          List profiles
+  :profile list         List all profiles
   :profile use <name>   Switch to profile
-  :q or :quit           Quit
+  :refresh, :r          Refresh current view
+  :clear, :c            Clear screen
+  :q, :quit, :exit      Quit
 
 NAVIGATION:
   j/↓                   Scroll down
