@@ -311,15 +311,32 @@ make lint
 ### Testing
 
 ```bash
+# Run unit tests
+make test
+
+# Run integration tests (requires Docker)
+make test-integration
+
 # Run all tests
-go test ./...
+make test-all
 
 # Run tests with coverage
-go test -cover ./...
+make test-coverage
 
-# Run specific test
-go test ./internal/config -v
+# Test GitHub Actions locally (requires act)
+act -j test                    # Test unit tests job
+act -j integration-test        # Test integration tests job
+act -j lint                    # Test linting job
+
+# Run local CI script
+./scripts/local-ci.sh
+
+# Manual testing
+go test ./...                  # Unit tests
+go test ./internal/config -v   # Specific package
 ```
+
+For detailed local testing instructions, see [LOCAL_TESTING.md](LOCAL_TESTING.md).
 
 ### Contributing
 
