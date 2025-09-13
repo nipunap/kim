@@ -69,3 +69,7 @@ coverage.xml
 # Local development
 .local/
 local/
+
+# Temporary files and directories
+tmp/
+temp/

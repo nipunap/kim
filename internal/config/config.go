@@ -219,6 +219,8 @@ func (c *Config) validateProfile(profile *Profile) error {
 				return fmt.Errorf("invalid security_protocol: %s", profile.SecurityProtocol)
 			}
 		}
+	case "":
+		return fmt.Errorf("profile type is required (must be 'kafka' or 'msk')")
 	default:
 		return fmt.Errorf("invalid profile type: %s (must be 'kafka' or 'msk')", profile.Type)
 	}

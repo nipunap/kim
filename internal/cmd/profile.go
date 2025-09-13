@@ -97,6 +97,7 @@ func NewProfileAddCmd(cfg *config.Config, log *logger.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
+
 			// Check if profile already exists
 			if _, exists := cfg.Profiles[name]; exists {
 				return fmt.Errorf("profile '%s' already exists", name)
