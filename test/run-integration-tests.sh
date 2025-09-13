@@ -1,4 +1,4 @@
-rfectly sh#!/bin/bash
+rfectly shKIM#!/bin/bash
 
 set -e
 

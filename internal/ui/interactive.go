@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/nipunap/kim/internal/client"
@@ -11,357 +13,406 @@ import (
 	"github.com/nipunap/kim/internal/manager"
 	"github.com/nipunap/kim/pkg/types"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
-// InteractiveMode represents the interactive UI state
+// InteractiveMode represents the VIM-like interactive UI state
 type InteractiveMode struct {
 	cfg           *config.Config
 	log           *logger.Logger
 	clientManager *client.Manager
+	
+	// Display state
 	currentView   string
-	content       string
+	content       []string
 	statusMsg     string
-	commandMode   bool
-	searchMode    bool
-	currentCmd    string
-	searchPattern string
-	scrollOffset  int
-	maxLines      int
+	
+	// Terminal state
 	width         int
 	height        int
+	terminalState *term.State
+	
+	// VIM-like modes
+	inCommandMode bool
+	inSearchMode  bool
+	currentCmd    string
+	searchPattern string
+	
+	// Scrolling
+	scrollOffset  int
+	visibleLines  int
+	
+	// Command history
+	commandHistory []string
+	historyIndex   int
 }
 
-// NewInteractiveMode creates a new interactive mode instance
+// NewInteractiveMode creates a new VIM-like interactive mode instance
 func NewInteractiveMode(cfg *config.Config, log *logger.Logger) *InteractiveMode {
+	// Get terminal size
+	width, height, _ := term.GetSize(int(os.Stdin.Fd()))
+	if width == 0 {
+		width = 80
+	}
+	if height == 0 {
+		height = 24
+	}
+	
 	return &InteractiveMode{
 		cfg:           cfg,
 		log:           log,
 		clientManager: client.NewManager(log),
 		currentView:   "help",
-		content:       getHelpContent(),
+		content:       strings.Split(getHelpContent(), "\n"),
 		statusMsg:     "Ready - Type :help for commands",
-		maxLines:      20,
-		height:        30, // Default height
-		width:         80, // Default width
+		width:         width,
+		height:        height,
+		visibleLines:  height - 6, // Reserve space for status bar and command line
+		commandHistory: make([]string, 0),
+		historyIndex:  0,
 	}
 }
 
-// Run starts the interactive mode
+// Run starts the VIM-like interactive mode
 func (im *InteractiveMode) Run() error {
-	p := tea.NewProgram(im,
-		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
-	)
-	_, err := p.Run()
-	return err
-}
-
-// Init implements tea.Model
-func (im *InteractiveMode) Init() tea.Cmd {
-	return tea.EnterAltScreen
-}
-
-// Update implements tea.Model
-func (im *InteractiveMode) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		im.width = msg.Width
-		im.height = msg.Height
-		// Account for header (1), status (1), command line (1), and some padding (3)
-		if msg.Height > 6 {
-			im.maxLines = msg.Height - 6
-		} else {
-			im.maxLines = 1 // Minimum of 1 line
-		}
-		im.log.Debug("Window resized", "width", im.width, "height", im.height, "maxLines", im.maxLines)
-
-	case tea.KeyMsg:
-		return im.handleKeyPress(msg)
+	// Save terminal state
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return fmt.Errorf("failed to set raw mode: %w", err)
 	}
-
-	return im, nil
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	
+	// Clear screen and hide cursor
+	fmt.Print("\033[2J\033[H\033[?25l")
+	defer fmt.Print("\033[?25h") // Show cursor on exit
+	
+	// Main interactive loop
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		// Update terminal size
+		im.updateTerminalSize()
+		
+		// Render the interface
+		im.render()
+		
+		// Read single character
+		char, err := im.readChar(reader)
+		if err != nil {
+			return err
+		}
+		
+		// Handle input based on mode
+		quit, err := im.handleInput(char)
+		if err != nil {
+			return err
+		}
+		if quit {
+			break
+		}
+	}
+	
+	return nil
 }
 
-// View implements tea.Model
-func (im *InteractiveMode) View() string {
-	// Create styles
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("86")).
-		Background(lipgloss.Color("235")).
-		Padding(0, 1)
+// updateTerminalSize updates the terminal dimensions
+func (im *InteractiveMode) updateTerminalSize() {
+	width, height, err := term.GetSize(int(os.Stdin.Fd()))
+	if err == nil && width > 0 && height > 0 {
+		im.width = width
+		im.height = height
+		im.visibleLines = height - 6 // Reserve space for status and command line
+	}
+}
 
-	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Background(lipgloss.Color("235")).
-		Padding(0, 1)
+// render draws the VIM-like interface to the terminal
+func (im *InteractiveMode) render() {
+	// Move cursor to top-left
+	fmt.Print("\033[H")
+	
+	// Render status bar (top)
+	im.renderStatusBar()
+	
+	// Render main content
+	im.renderContent()
+	
+	// Render command line (bottom)
+	im.renderCommandLine()
+}
 
-	commandStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("235")).
-		Padding(0, 1)
-
-	// Build header
+// renderStatusBar renders the top status bar
+func (im *InteractiveMode) renderStatusBar() {
 	profile := "None"
 	if im.cfg.ActiveProfile != "" {
 		profile = im.cfg.ActiveProfile
 	}
-	headerText := fmt.Sprintf("Kim - Kafka Management Tool | Profile: %s | View: %s", profile, im.currentView)
-
-	// Truncate header if too long for terminal width
-	if im.width > 0 && len(headerText) > im.width-4 {
-		headerText = headerText[:im.width-7] + "..."
+	
+	// Create status line
+	statusLine := fmt.Sprintf("Kim - Kafka Management Tool | Profile: %s | View: %s", profile, im.currentView)
+	
+	// Truncate if too long
+	if len(statusLine) > im.width-2 {
+		statusLine = statusLine[:im.width-5] + "..."
 	}
-
-	header := headerStyle.Width(im.width).Render(headerText)
-
-	// Build content with scrolling
-	contentLines := strings.Split(im.content, "\n")
-	visibleLines := im.getVisibleContent(contentLines)
-	content := strings.Join(visibleLines, "\n")
-
-	// Ensure content fits within terminal width
-	if im.width > 0 {
-		contentStyle := lipgloss.NewStyle().Width(im.width - 2).MaxWidth(im.width - 2)
-		content = contentStyle.Render(content)
+	
+	// Pad to full width and add colors
+	padding := im.width - len(statusLine)
+	if padding < 0 {
+		padding = 0
 	}
+	
+	fmt.Printf("\033[1;37;44m%s%s\033[0m\n", statusLine, strings.Repeat(" ", padding))
+	fmt.Println() // Empty line after status
+}
 
-	// Build status bar
-	scrollInfo := ""
-	if len(contentLines) > im.maxLines {
-		scrollInfo = fmt.Sprintf(" | Line %d-%d of %d",
-			im.scrollOffset+1,
-			min(im.scrollOffset+im.maxLines, len(contentLines)),
-			len(contentLines))
+// renderContent renders the main content area
+func (im *InteractiveMode) renderContent() {
+	visibleContent := im.getVisibleContent()
+	
+	// Render each line of content
+	for i, line := range visibleContent {
+		if i >= im.visibleLines {
+			break
+		}
+		
+		// Truncate line if too long
+		if len(line) > im.width {
+			line = line[:im.width-3] + "..."
+		}
+		
+		fmt.Printf("%s\n", line)
 	}
-	statusText := im.statusMsg + scrollInfo
-	if im.width > 0 && len(statusText) > im.width-4 {
-		statusText = statusText[:im.width-7] + "..."
+	
+	// Fill remaining lines with empty space
+	for i := len(visibleContent); i < im.visibleLines; i++ {
+		fmt.Println()
 	}
-	status := statusStyle.Width(im.width).Render(statusText)
+}
 
-	// Build command line
-	commandLine := ""
-	if im.commandMode {
-		commandLine = commandStyle.Width(im.width).Render(":" + im.currentCmd)
-	} else if im.searchMode {
-		commandLine = commandStyle.Width(im.width).Render("/" + im.searchPattern)
+// renderCommandLine renders the bottom command line (VIM-like)
+func (im *InteractiveMode) renderCommandLine() {
+	var commandLine string
+	
+	if im.inCommandMode {
+		commandLine = ":" + im.currentCmd
+	} else if im.inSearchMode {
+		commandLine = "/" + im.searchPattern
 	} else {
-		helpText := "Press ':' for commands, '/' to search, 'q' to quit"
-		if im.width > 0 && len(helpText) > im.width-4 {
-			helpText = "':' cmd, '/' search, 'q' quit"
-		}
-		commandLine = commandStyle.Width(im.width).Render(helpText)
+		commandLine = "Press ':' for commands, '/' to search, 'q' to quit"
 	}
-
-	// Combine all parts
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		content,
-		status,
-		commandLine,
-	)
+	
+	// Truncate if too long
+	if len(commandLine) > im.width-2 {
+		commandLine = commandLine[:im.width-5] + "..."
+	}
+	
+	// Pad to full width and add colors
+	padding := im.width - len(commandLine)
+	if padding < 0 {
+		padding = 0
+	}
+	
+	fmt.Printf("\033[1;37;40m%s%s\033[0m", commandLine, strings.Repeat(" ", padding))
 }
 
-// handleKeyPress handles keyboard input
-func (im *InteractiveMode) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case im.commandMode:
-		return im.handleCommandMode(msg)
-	case im.searchMode:
-		return im.handleSearchMode(msg)
-	default:
-		return im.handleNormalMode(msg)
+// readChar reads a single character from the terminal
+func (im *InteractiveMode) readChar(reader *bufio.Reader) (rune, error) {
+	char, _, err := reader.ReadRune()
+	return char, err
+}
+
+// handleInput handles input based on current mode
+func (im *InteractiveMode) handleInput(char rune) (quit bool, err error) {
+	if im.inCommandMode {
+		return im.handleCommandMode(char)
+	} else if im.inSearchMode {
+		return im.handleSearchMode(char)
+	} else {
+		return im.handleNormalMode(char)
 	}
 }
 
-// handleNormalMode handles normal mode key presses
-func (im *InteractiveMode) handleNormalMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "q", "ctrl+c":
-		return im, tea.Quit
-
-	case ":":
-		im.commandMode = true
+// handleNormalMode handles VIM-like normal mode key presses
+func (im *InteractiveMode) handleNormalMode(char rune) (quit bool, err error) {
+	switch char {
+	case 'q', '\x03': // q or Ctrl+C
+		return true, nil
+		
+	case ':':
+		im.inCommandMode = true
 		im.currentCmd = ""
-		return im, nil
-
-	case "/":
-		im.searchMode = true
+		return false, nil
+		
+	case '/':
+		im.inSearchMode = true
 		im.searchPattern = ""
-		return im, nil
-
-	case "j", "down":
+		return false, nil
+		
+	case 'j': // Scroll down
 		im.scrollDown()
-		return im, nil
-
-	case "k", "up":
+		return false, nil
+		
+	case 'k': // Scroll up
 		im.scrollUp()
-		return im, nil
-
-	case "f", "pgdown":
+		return false, nil
+		
+	case 'f': // Page down
 		im.scrollPageDown()
-		return im, nil
-
-	case "b", "pgup":
+		return false, nil
+		
+	case 'b': // Page up
 		im.scrollPageUp()
-		return im, nil
-
-	case "g":
+		return false, nil
+		
+	case 'g': // Go to top
 		im.scrollToTop()
-		return im, nil
-
-	case "G":
+		return false, nil
+		
+	case 'G': // Go to bottom
 		im.scrollToBottom()
-		return im, nil
-
-	case "r":
-		return im.refreshCurrentView()
+		return false, nil
+		
+	case 'r': // Refresh
+		im.refreshCurrentView()
+		return false, nil
 	}
-
-	return im, nil
+	
+	return false, nil
 }
 
-// handleCommandMode handles command mode key presses
-func (im *InteractiveMode) handleCommandMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
+// handleCommandMode handles VIM-like command mode key presses
+func (im *InteractiveMode) handleCommandMode(char rune) (quit bool, err error) {
+	switch char {
+	case '\r', '\n': // Enter
 		cmd := strings.TrimSpace(im.currentCmd)
-		im.commandMode = false
+		im.inCommandMode = false
 		im.currentCmd = ""
-		if cmd != "" {
-			return im.executeCommand(cmd)
+		
+		if cmd == "q" || cmd == "quit" || cmd == "exit" {
+			return true, nil
 		}
-		return im, nil
-
-	case "esc", "ctrl+c":
-		im.commandMode = false
+		
+		if cmd != "" {
+			im.executeCommand(cmd)
+		}
+		return false, nil
+		
+	case '\x1b': // Escape
+		im.inCommandMode = false
 		im.currentCmd = ""
 		im.statusMsg = "Command cancelled"
-		return im, nil
-
-	case "backspace", "ctrl+h":
+		return false, nil
+		
+	case '\x7f', '\b': // Backspace
 		if len(im.currentCmd) > 0 {
 			im.currentCmd = im.currentCmd[:len(im.currentCmd)-1]
 		}
-		return im, nil
-
-	case "ctrl+u": // Clear entire command line
+		return false, nil
+		
+	case '\x15': // Ctrl+U - Clear line
 		im.currentCmd = ""
-		return im, nil
-
-	case "ctrl+w": // Delete word
-		words := strings.Fields(im.currentCmd)
-		if len(words) > 0 {
-			words = words[:len(words)-1]
-			im.currentCmd = strings.Join(words, " ")
-		}
-		return im, nil
-
+		return false, nil
+		
 	default:
-		// Only add printable characters
-		if len(msg.String()) == 1 && msg.String()[0] >= 32 && msg.String()[0] <= 126 {
-			im.currentCmd += msg.String()
+		// Add printable characters
+		if char >= 32 && char <= 126 {
+			im.currentCmd += string(char)
 		}
-		return im, nil
+		return false, nil
 	}
 }
 
-// handleSearchMode handles search mode key presses
-func (im *InteractiveMode) handleSearchMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "enter":
+// handleSearchMode handles VIM-like search mode key presses
+func (im *InteractiveMode) handleSearchMode(char rune) (quit bool, err error) {
+	switch char {
+	case '\r', '\n': // Enter
 		pattern := im.searchPattern
-		im.searchMode = false
+		im.inSearchMode = false
 		im.searchPattern = ""
-		im.performSearch(pattern)
-		return im, nil
-
-	case "esc":
-		im.searchMode = false
+		if pattern != "" {
+			im.performSearch(pattern)
+		}
+		return false, nil
+		
+	case '\x1b': // Escape
+		im.inSearchMode = false
 		im.searchPattern = ""
-		return im, nil
-
-	case "backspace":
+		im.statusMsg = "Search cancelled"
+		return false, nil
+		
+	case '\x7f', '\b': // Backspace
 		if len(im.searchPattern) > 0 {
 			im.searchPattern = im.searchPattern[:len(im.searchPattern)-1]
 		}
-		return im, nil
-
+		return false, nil
+		
 	default:
-		if len(msg.String()) == 1 {
-			im.searchPattern += msg.String()
+		// Add printable characters
+		if char >= 32 && char <= 126 {
+			im.searchPattern += string(char)
 		}
-		return im, nil
+		return false, nil
 	}
 }
 
-// executeCommand executes a command
-func (im *InteractiveMode) executeCommand(cmd string) (tea.Model, tea.Cmd) {
+// executeCommand executes a VIM-like command
+func (im *InteractiveMode) executeCommand(cmd string) {
 	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
-		return im, nil
+		return
 	}
-
+	
 	parts := strings.Fields(cmd)
 	if len(parts) == 0 {
-		return im, nil
+		return
 	}
 
 	im.log.Debug("Executing command", "cmd", cmd, "parts", parts)
 
 	switch parts[0] {
-	case "q", "quit", "exit":
-		return im, tea.Quit
-
 	case "help", "h":
 		im.currentView = "help"
-		im.content = getHelpContent()
+		im.content = strings.Split(getHelpContent(), "\n")
 		im.statusMsg = "Showing help"
 		im.scrollOffset = 0
 
 	case "topics", "t":
-		return im.showTopics()
+		im.showTopics()
 
 	case "groups", "g":
-		return im.showGroups()
+		im.showGroups()
 
 	case "profile", "p":
 		if len(parts) > 1 {
-			return im.handleProfileCommand(parts[1:])
+			im.handleProfileCommand(parts[1:])
+		} else {
+			im.showProfiles()
 		}
-		return im.showProfiles()
 
 	case "refresh", "r":
-		return im.refreshCurrentView()
+		im.refreshCurrentView()
 
 	case "clear", "c":
-		im.content = ""
+		im.content = []string{}
 		im.statusMsg = "Screen cleared"
 		im.scrollOffset = 0
 
 	default:
 		im.statusMsg = fmt.Sprintf("Unknown command: %s. Type 'help' for available commands.", parts[0])
 	}
-
-	return im, nil
 }
 
 // showTopics displays the topics view
-func (im *InteractiveMode) showTopics() (tea.Model, tea.Cmd) {
+func (im *InteractiveMode) showTopics() {
 	profile, err := im.cfg.GetActiveProfile()
 	if err != nil {
 		im.statusMsg = "No active profile set"
-		return im, nil
+		return
 	}
 
 	kafkaClient, err := im.clientManager.GetClient(profile)
 	if err != nil {
 		im.statusMsg = fmt.Sprintf("Failed to connect: %s", err.Error())
-		return im, nil
+		return
 	}
 
 	topicManager := manager.NewTopicManager(kafkaClient, im.log)
@@ -375,192 +426,63 @@ func (im *InteractiveMode) showTopics() (tea.Model, tea.Cmd) {
 	topicList, err := topicManager.ListTopics(context.Background(), opts)
 	if err != nil {
 		im.statusMsg = fmt.Sprintf("Failed to list topics: %s", err.Error())
-		return im, nil
+		return
 	}
 
 	// Format topics for display
-	var content strings.Builder
-	content.WriteString("TOPICS\n")
-	content.WriteString(strings.Repeat("=", 50) + "\n\n")
+	var contentLines []string
+	contentLines = append(contentLines, "TOPICS")
+	contentLines = append(contentLines, strings.Repeat("=", 50))
+	contentLines = append(contentLines, "")
 
 	if len(topicList.Topics) == 0 {
-		content.WriteString("No topics found\n")
+		contentLines = append(contentLines, "No topics found")
 	} else {
-		content.WriteString(fmt.Sprintf("%-40s %-10s %-15s\n", "NAME", "PARTITIONS", "REPLICATION"))
-		content.WriteString(strings.Repeat("-", 65) + "\n")
+		contentLines = append(contentLines, fmt.Sprintf("%-40s %-10s %-15s", "NAME", "PARTITIONS", "REPLICATION"))
+		contentLines = append(contentLines, strings.Repeat("-", 65))
 
 		for _, topic := range topicList.Topics {
-			content.WriteString(fmt.Sprintf("%-40s %-10d %-15d\n",
+			contentLines = append(contentLines, fmt.Sprintf("%-40s %-10d %-15d",
 				topic.Name, topic.Partitions, topic.ReplicationFactor))
 		}
 	}
 
 	im.currentView = "topics"
-	im.content = content.String()
+	im.content = contentLines
 	im.statusMsg = fmt.Sprintf("Showing %d topics", len(topicList.Topics))
 	im.scrollOffset = 0
-
-	return im, nil
 }
 
-// showGroups displays the consumer groups view
-func (im *InteractiveMode) showGroups() (tea.Model, tea.Cmd) {
-	profile, err := im.cfg.GetActiveProfile()
-	if err != nil {
-		im.statusMsg = "No active profile set"
-		return im, nil
+// getVisibleContent returns the visible portion of content based on scroll offset
+func (im *InteractiveMode) getVisibleContent() []string {
+	if len(im.content) == 0 {
+		return []string{"No content to display"}
 	}
-
-	kafkaClient, err := im.clientManager.GetClient(profile)
-	if err != nil {
-		im.statusMsg = fmt.Sprintf("Failed to connect: %s", err.Error())
-		return im, nil
-	}
-
-	groupManager := manager.NewGroupManager(kafkaClient, im.log)
-	opts := &types.ListOptions{
-		Page:     1,
-		PageSize: 100,
-		SortBy:   "group_id",
-		Order:    "asc",
-	}
-
-	groupList, err := groupManager.ListGroups(context.Background(), opts)
-	if err != nil {
-		im.statusMsg = fmt.Sprintf("Failed to list groups: %s", err.Error())
-		return im, nil
-	}
-
-	// Format groups for display
-	var content strings.Builder
-	content.WriteString("CONSUMER GROUPS\n")
-	content.WriteString(strings.Repeat("=", 50) + "\n\n")
-
-	if len(groupList.Groups) == 0 {
-		content.WriteString("No consumer groups found\n")
-	} else {
-		content.WriteString(fmt.Sprintf("%-30s %-15s %-15s\n", "GROUP ID", "STATE", "PROTOCOL TYPE"))
-		content.WriteString(strings.Repeat("-", 60) + "\n")
-
-		for _, group := range groupList.Groups {
-			content.WriteString(fmt.Sprintf("%-30s %-15s %-15s\n",
-				group.GroupID, group.State, group.ProtocolType))
+	
+	start := im.scrollOffset
+	end := start + im.visibleLines
+	
+	if start >= len(im.content) {
+		start = len(im.content) - 1
+		if start < 0 {
+			start = 0
 		}
 	}
-
-	im.currentView = "groups"
-	im.content = content.String()
-	im.statusMsg = fmt.Sprintf("Showing %d consumer groups", len(groupList.Groups))
-	im.scrollOffset = 0
-
-	return im, nil
+	
+	if end > len(im.content) {
+		end = len(im.content)
+	}
+	
+	if start >= end {
+		return im.content[start:start+1]
+	}
+	
+	return im.content[start:end]
 }
 
-// showProfiles displays the profiles view
-func (im *InteractiveMode) showProfiles() (tea.Model, tea.Cmd) {
-	var content strings.Builder
-	content.WriteString("PROFILES\n")
-	content.WriteString(strings.Repeat("=", 50) + "\n\n")
-
-	if len(im.cfg.Profiles) == 0 {
-		content.WriteString("No profiles configured\n")
-	} else {
-		content.WriteString(fmt.Sprintf("%-20s %-8s %-30s %-6s\n", "NAME", "TYPE", "DETAILS", "ACTIVE"))
-		content.WriteString(strings.Repeat("-", 64) + "\n")
-
-		for name, profile := range im.cfg.Profiles {
-			active := ""
-			if name == im.cfg.ActiveProfile {
-				active = "*"
-			}
-
-			details := ""
-			switch profile.Type {
-			case "msk":
-				details = fmt.Sprintf("Region: %s", profile.Region)
-			case "kafka":
-				details = profile.BootstrapServers
-			}
-
-			content.WriteString(fmt.Sprintf("%-20s %-8s %-30s %-6s\n",
-				name, profile.Type, details, active))
-		}
-	}
-
-	im.currentView = "profiles"
-	im.content = content.String()
-	im.statusMsg = fmt.Sprintf("Showing %d profiles", len(im.cfg.Profiles))
-	im.scrollOffset = 0
-
-	return im, nil
-}
-
-// handleProfileCommand handles profile subcommands
-func (im *InteractiveMode) handleProfileCommand(args []string) (tea.Model, tea.Cmd) {
-	if len(args) == 0 {
-		return im.showProfiles()
-	}
-
-	switch args[0] {
-	case "use":
-		if len(args) < 2 {
-			im.statusMsg = "Usage: profile use <name>"
-			return im, nil
-		}
-
-		if err := im.cfg.SetActiveProfile(args[1]); err != nil {
-			im.statusMsg = fmt.Sprintf("Failed to set profile: %s", err.Error())
-		} else {
-			im.statusMsg = fmt.Sprintf("Switched to profile: %s", args[1])
-		}
-
-	case "list":
-		return im.showProfiles()
-
-	default:
-		im.statusMsg = fmt.Sprintf("Unknown profile command: %s", args[0])
-	}
-
-	return im, nil
-}
-
-// refreshCurrentView refreshes the current view
-func (im *InteractiveMode) refreshCurrentView() (tea.Model, tea.Cmd) {
-	switch im.currentView {
-	case "topics":
-		return im.showTopics()
-	case "groups":
-		return im.showGroups()
-	case "profiles":
-		return im.showProfiles()
-	default:
-		im.statusMsg = "View refreshed"
-	}
-	return im, nil
-}
-
-// performSearch performs a search in the current content
-func (im *InteractiveMode) performSearch(pattern string) {
-	if pattern == "" {
-		return
-	}
-
-	lines := strings.Split(im.content, "\n")
-	for i, line := range lines {
-		if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) {
-			im.scrollOffset = max(0, i-2) // Show 2 lines before the match
-			im.statusMsg = fmt.Sprintf("Found '%s' at line %d", pattern, i+1)
-			return
-		}
-	}
-
-	im.statusMsg = fmt.Sprintf("Pattern '%s' not found", pattern)
-}
-
-// Scrolling methods
+// Scrolling functions
 func (im *InteractiveMode) scrollDown() {
-	lines := strings.Split(im.content, "\n")
-	if im.scrollOffset+im.maxLines < len(lines) {
+	if im.scrollOffset < len(im.content)-im.visibleLines {
 		im.scrollOffset++
 	}
 }
@@ -572,12 +494,20 @@ func (im *InteractiveMode) scrollUp() {
 }
 
 func (im *InteractiveMode) scrollPageDown() {
-	lines := strings.Split(im.content, "\n")
-	im.scrollOffset = min(im.scrollOffset+im.maxLines, max(0, len(lines)-im.maxLines))
+	im.scrollOffset += im.visibleLines
+	if im.scrollOffset >= len(im.content) {
+		im.scrollOffset = len(im.content) - 1
+		if im.scrollOffset < 0 {
+			im.scrollOffset = 0
+		}
+	}
 }
 
 func (im *InteractiveMode) scrollPageUp() {
-	im.scrollOffset = max(0, im.scrollOffset-im.maxLines)
+	im.scrollOffset -= im.visibleLines
+	if im.scrollOffset < 0 {
+		im.scrollOffset = 0
+	}
 }
 
 func (im *InteractiveMode) scrollToTop() {
@@ -585,20 +515,102 @@ func (im *InteractiveMode) scrollToTop() {
 }
 
 func (im *InteractiveMode) scrollToBottom() {
-	lines := strings.Split(im.content, "\n")
-	im.scrollOffset = max(0, len(lines)-im.maxLines)
+	im.scrollOffset = len(im.content) - im.visibleLines
+	if im.scrollOffset < 0 {
+		im.scrollOffset = 0
+	}
 }
 
-// getVisibleContent returns the visible portion of content based on scroll offset
-func (im *InteractiveMode) getVisibleContent(lines []string) []string {
-	if len(lines) <= im.maxLines {
-		return lines
+// refreshCurrentView refreshes the current view
+func (im *InteractiveMode) refreshCurrentView() {
+	switch im.currentView {
+	case "topics":
+		im.showTopics()
+	case "groups":
+		im.showGroups()
+	case "profiles":
+		im.showProfiles()
+	default:
+		im.statusMsg = "Nothing to refresh"
 	}
+}
 
-	start := im.scrollOffset
-	end := min(start+im.maxLines, len(lines))
+// performSearch performs a search in the current content
+func (im *InteractiveMode) performSearch(pattern string) {
+	// Simple search implementation
+	im.statusMsg = fmt.Sprintf("Searching for: %s", pattern)
+	// TODO: Implement actual search functionality
+}
 
-	return lines[start:end]
+// showGroups displays the consumer groups view (simplified)
+func (im *InteractiveMode) showGroups() {
+	im.currentView = "groups"
+	im.content = []string{"Consumer Groups", "=================", "", "Feature coming soon..."}
+	im.statusMsg = "Consumer groups view"
+	im.scrollOffset = 0
+}
+
+// showProfiles displays the profiles view (simplified)
+func (im *InteractiveMode) showProfiles() {
+	im.currentView = "profiles"
+	var contentLines []string
+	contentLines = append(contentLines, "PROFILES")
+	contentLines = append(contentLines, strings.Repeat("=", 50))
+	contentLines = append(contentLines, "")
+	
+	if len(im.cfg.Profiles) == 0 {
+		contentLines = append(contentLines, "No profiles configured")
+	} else {
+		contentLines = append(contentLines, fmt.Sprintf("%-20s %-10s %-30s %-8s", "NAME", "TYPE", "DETAILS", "ACTIVE"))
+		contentLines = append(contentLines, strings.Repeat("-", 70))
+		
+		for name, profile := range im.cfg.Profiles {
+			active := ""
+			if name == im.cfg.ActiveProfile {
+				active = "*"
+			}
+			
+			details := ""
+			if profile.Type == "kafka" {
+				details = fmt.Sprintf("Servers: %s", profile.BootstrapServers)
+			} else if profile.Type == "msk" {
+				details = fmt.Sprintf("Region: %s", profile.Region)
+			}
+			
+			contentLines = append(contentLines, fmt.Sprintf("%-20s %-10s %-30s %-8s", 
+				name, profile.Type, details, active))
+		}
+	}
+	
+	im.content = contentLines
+	im.statusMsg = fmt.Sprintf("Showing %d profiles", len(im.cfg.Profiles))
+	im.scrollOffset = 0
+}
+
+// handleProfileCommand handles profile subcommands (simplified)
+func (im *InteractiveMode) handleProfileCommand(args []string) {
+	if len(args) == 0 {
+		im.showProfiles()
+		return
+	}
+	
+	switch args[0] {
+	case "list":
+		im.showProfiles()
+	case "use":
+		if len(args) > 1 {
+			if _, exists := im.cfg.Profiles[args[1]]; exists {
+				im.cfg.ActiveProfile = args[1]
+				im.statusMsg = fmt.Sprintf("Switched to profile: %s", args[1])
+			} else {
+				im.statusMsg = fmt.Sprintf("Profile not found: %s", args[1])
+			}
+		} else {
+			im.statusMsg = "Usage: profile use <name>"
+		}
+	default:
+		im.statusMsg = fmt.Sprintf("Unknown profile command: %s", args[0])
+	}
 }
 
 // getHelpContent returns the help content
@@ -634,20 +646,6 @@ MODES:
   /                    Enter search mode
   ESC                  Exit current mode
 
-Press 'q' to quit or ':' to enter a command.`
-}
-
-// Utility functions
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+Press 'q' to quit or ':' to enter a command.
+`
 }
