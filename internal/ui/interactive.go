@@ -67,7 +67,7 @@ func NewInteractiveMode(cfg *config.Config, log *logger.Logger) *InteractiveMode
 		statusMsg:     "Ready - Type :help for commands",
 		width:         width,
 		height:        height,
-		visibleLines:  height - 6, // Reserve space for status bar and command line
+		visibleLines:  height - 4, // Reserve space for status bar, empty line, command line, padding
 		commandHistory: make([]string, 0),
 		historyIndex:  0,
 	}
@@ -120,14 +120,14 @@ func (im *InteractiveMode) updateTerminalSize() {
 	if err == nil && width > 0 && height > 0 {
 		im.width = width
 		im.height = height
-		im.visibleLines = height - 6 // Reserve space for status and command line
+		im.visibleLines = height - 4 // Reserve space for status bar, empty line, command line, padding
 	}
 }
 
 // render draws the VIM-like interface to the terminal
 func (im *InteractiveMode) render() {
-	// Move cursor to top-left
-	fmt.Print("\033[H")
+	// Clear screen and move cursor to top-left
+	fmt.Print("\033[2J\033[H")
 	
 	// Render status bar (top)
 	im.renderStatusBar()
@@ -168,23 +168,36 @@ func (im *InteractiveMode) renderStatusBar() {
 func (im *InteractiveMode) renderContent() {
 	visibleContent := im.getVisibleContent()
 	
+	// Calculate available lines for content (total height - status bar - command line - padding)
+	availableLines := im.height - 4 // 1 for status, 1 for empty line, 1 for command line, 1 for padding
+	if availableLines < 1 {
+		availableLines = 1
+	}
+	
 	// Render each line of content
-	for i, line := range visibleContent {
-		if i >= im.visibleLines {
+	linesRendered := 0
+	for _, line := range visibleContent {
+		if linesRendered >= availableLines {
 			break
 		}
 		
 		// Truncate line if too long
 		if len(line) > im.width {
-			line = line[:im.width-3] + "..."
+			if im.width > 3 {
+				line = line[:im.width-3] + "..."
+			} else {
+				line = line[:im.width]
+			}
 		}
 		
 		fmt.Printf("%s\n", line)
+		linesRendered++
 	}
 	
-	// Fill remaining lines with empty space
-	for i := len(visibleContent); i < im.visibleLines; i++ {
+	// Fill remaining lines with empty space to prevent overlap
+	for linesRendered < availableLines {
 		fmt.Println()
+		linesRendered++
 	}
 }
 
@@ -202,7 +215,11 @@ func (im *InteractiveMode) renderCommandLine() {
 	
 	// Truncate if too long
 	if len(commandLine) > im.width-2 {
-		commandLine = commandLine[:im.width-5] + "..."
+		if im.width > 5 {
+			commandLine = commandLine[:im.width-5] + "..."
+		} else {
+			commandLine = commandLine[:im.width-2]
+		}
 	}
 	
 	// Pad to full width and add colors
@@ -211,7 +228,8 @@ func (im *InteractiveMode) renderCommandLine() {
 		padding = 0
 	}
 	
-	fmt.Printf("\033[1;37;40m%s%s\033[0m", commandLine, strings.Repeat(" ", padding))
+	// Move cursor to bottom of screen and render command line
+	fmt.Printf("\033[%d;1H\033[1;37;40m%s%s\033[0m", im.height, commandLine, strings.Repeat(" ", padding))
 }
 
 // readChar reads a single character from the terminal
