@@ -48,7 +48,7 @@ func (m *MockGroupAdminClient) DescribeConsumerGroups(groups []string) ([]*saram
 
 func (m *MockGroupAdminClient) DeleteConsumerGroup(groupID string) error {
 	if m.shouldFail {
-		return sarama.ErrGroupIdNotFound
+		return sarama.ErrGroupIDNotFound
 	}
 	delete(m.groups, groupID)
 	return nil

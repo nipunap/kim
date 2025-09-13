@@ -78,7 +78,7 @@ func TestRootCommand(t *testing.T) {
 }
 
 func TestProfileCommands(t *testing.T) {
-	tempDir, cleanup := setupTestEnvironment(t)
+	_, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
 	cfg := testutil.TestConfig()
