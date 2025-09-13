@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"kim/internal/testutil"
+	"github.com/nipunap/kim/internal/testutil"
 
 	"github.com/spf13/cobra"
 )

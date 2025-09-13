@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"kim/internal/auth"
-	"kim/internal/config"
-	"kim/internal/logger"
+	"github.com/nipunap/kim/internal/auth"
+	"github.com/nipunap/kim/internal/config"
+	"github.com/nipunap/kim/internal/logger"
 
 	"github.com/IBM/sarama"
 )

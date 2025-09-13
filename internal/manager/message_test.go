@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"kim/internal/testutil"
-	"kim/pkg/types"
+	"github.com/nipunap/kim/internal/testutil"
+	"github.com/nipunap/kim/pkg/types"
 
 	"github.com/IBM/sarama"
 )

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"kim/internal/client"
-	"kim/internal/config"
-	"kim/internal/logger"
-	"kim/internal/manager"
-	"kim/pkg/types"
+	"github.com/nipunap/kim/internal/client"
+	"github.com/nipunap/kim/internal/config"
+	"github.com/nipunap/kim/internal/logger"
+	"github.com/nipunap/kim/internal/manager"
+	"github.com/nipunap/kim/pkg/types"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

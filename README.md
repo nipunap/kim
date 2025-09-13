@@ -1,8 +1,13 @@
 # Kim - Kafka Management Tool
 
+[![Go Version](https://img.shields.io/github/go-mod/go-version/nipunap/kim)](https://golang.org/)
+[![License](https://img.shields.io/github/license/nipunap/kim)](https://github.com/nipunap/kim/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/release/nipunap/kim.svg)](https://github.com/nipunap/kim/releases)
+[![CI](https://github.com/nipunap/kim/workflows/CI/badge.svg)](https://github.com/nipunap/kim/actions)
+
 Kim is a powerful command-line interface for managing Kafka and MSK clusters, written in Go. It provides an intuitive way to interact with Kafka topics, consumer groups, and messages with support for both regular Kafka and AWS MSK clusters.
 
-Inspired by the Python [Kombucha](../kombucha.py) tool, Kim offers the same functionality with improved performance, better structure, and enhanced user experience.
+Inspired by the Python Kombucha tool, Kim offers the same functionality with improved performance, better structure, and enhanced user experience.
 
 ## Features
 
@@ -20,7 +25,7 @@ Inspired by the Python [Kombucha](../kombucha.py) tool, Kim offers the same func
 ### From Source
 
 ```bash
-git clone <repository>
+git clone https://github.com/nipunap/kim.git
 cd kim
 make build
 # Binary will be available at ./build/kim
@@ -29,12 +34,12 @@ make build
 ### Using Go
 
 ```bash
-go install kim/cmd/kim@latest
+go install github.com/nipunap/kim/cmd/kim@latest
 ```
 
 ### Pre-built Binaries
 
-Download pre-built binaries from the releases page for your platform.
+Download pre-built binaries from the [releases page](https://github.com/nipunap/kim/releases) for your platform.
 
 ## Quick Start
 
@@ -318,12 +323,14 @@ go test ./internal/config -v
 
 ### Contributing
 
-1. Fork the repository
-2. Create a feature branch
+1. Fork the [repository](https://github.com/nipunap/kim)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
 4. Add tests for new functionality
 5. Run `make test` and `make lint`
-6. Submit a pull request
+6. Commit your changes (`git commit -m 'Add some amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a [Pull Request](https://github.com/nipunap/kim/pulls)
 
 ## Comparison with Kombucha
 
@@ -343,11 +350,18 @@ Kim is inspired by the Python Kombucha tool but offers several improvements:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GPL-3.0 License - see the [LICENSE](https://github.com/nipunap/kim/blob/main/LICENSE) file for details.
 
 ## Acknowledgments
 
-- Inspired by the original [Kombucha](../kombucha.py) Python tool
+- Inspired by the original Kombucha Python tool
 - Built with [Cobra](https://github.com/spf13/cobra) for CLI framework
 - Uses [Sarama](https://github.com/IBM/sarama) for Kafka client functionality
 - Interactive mode powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+
+## Support
+
+- 📖 [Documentation](https://github.com/nipunap/kim/blob/main/README.md)
+- 🐛 [Issue Tracker](https://github.com/nipunap/kim/issues)
+- 💬 [Discussions](https://github.com/nipunap/kim/discussions)
+- 📧 [Contact](https://github.com/nipunap)

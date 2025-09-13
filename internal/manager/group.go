@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	"kim/internal/client"
-	"kim/internal/logger"
-	"kim/pkg/types"
+	"github.com/nipunap/kim/internal/client"
+	"github.com/nipunap/kim/internal/logger"
+	"github.com/nipunap/kim/pkg/types"
 
 	"github.com/IBM/sarama"
 )

@@ -2,9 +2,9 @@ module kim-integration-tests
 
 go 1.21
 
-replace kim => ../
+replace github.com/nipunap/kim => ../
 
-require kim v0.0.0-00010101000000-000000000000
+require github.com/nipunap/kim v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
@@ -21,7 +21,6 @@ require (
 	github.com/spf13/viper v1.18.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/exp v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

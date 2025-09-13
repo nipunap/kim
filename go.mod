@@ -1,4 +1,4 @@
-module kim
+module github.com/nipunap/kim
 
 go 1.21
 

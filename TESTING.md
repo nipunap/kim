@@ -323,6 +323,7 @@ When contributing tests:
 
 ## Resources
 
+- [Kim Repository](https://github.com/nipunap/kim)
 - [Go Testing Package](https://pkg.go.dev/testing)
 - [Testify Framework](https://github.com/stretchr/testify)
 - [Docker Compose](https://docs.docker.com/compose/)

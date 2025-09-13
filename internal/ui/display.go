@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"kim/pkg/types"
+	"github.com/nipunap/kim/pkg/types"
 
 	"gopkg.in/yaml.v3"
 )

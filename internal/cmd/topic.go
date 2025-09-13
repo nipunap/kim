@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"kim/internal/client"
-	"kim/internal/config"
-	"kim/internal/logger"
-	"kim/internal/manager"
-	"kim/internal/ui"
-	"kim/pkg/types"
+	"github.com/nipunap/kim/internal/client"
+	"github.com/nipunap/kim/internal/config"
+	"github.com/nipunap/kim/internal/logger"
+	"github.com/nipunap/kim/internal/manager"
+	"github.com/nipunap/kim/internal/ui"
+	"github.com/nipunap/kim/pkg/types"
 
 	"github.com/spf13/cobra"
 )

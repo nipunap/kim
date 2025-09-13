@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"kim/internal/config"
-	"kim/internal/logger"
-	"kim/internal/ui"
-	"kim/pkg/types"
+	"github.com/nipunap/kim/internal/config"
+	"github.com/nipunap/kim/internal/logger"
+	"github.com/nipunap/kim/internal/ui"
+	"github.com/nipunap/kim/pkg/types"
 
 	"github.com/spf13/cobra"
 )

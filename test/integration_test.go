@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"kim/internal/config"
+	"github.com/nipunap/kim/internal/config"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"kim/pkg/types"
+	"github.com/nipunap/kim/pkg/types"
 )
 
 // captureOutput captures stdout during function execution

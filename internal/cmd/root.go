@@ -3,9 +3,9 @@ package cmd
 import (
 	"os"
 
-	"kim/internal/config"
-	"kim/internal/logger"
-	"kim/internal/ui"
+	"github.com/nipunap/kim/internal/config"
+	"github.com/nipunap/kim/internal/logger"
+	"github.com/nipunap/kim/internal/ui"
 
 	"github.com/spf13/cobra"
 )
@@ -52,7 +52,7 @@ with support for both regular Kafka and AWS MSK clusters.`,
 	}
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kim/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.github.com/nipunap/kim/config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 	rootCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "run in interactive mode")
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"kim/internal/config"
-	"kim/internal/logger"
-	"kim/pkg/types"
+	"github.com/nipunap/kim/internal/config"
+	"github.com/nipunap/kim/internal/logger"
+	"github.com/nipunap/kim/pkg/types"
 
 	"github.com/IBM/sarama"
 )
