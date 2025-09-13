@@ -30,7 +30,7 @@ act
 
 # Run specific job
 act -j test                    # Run unit tests
-act -j integration-test        # Run integration tests  
+act -j integration-test        # Run integration tests
 act -j lint                    # Run linting
 act -j security               # Run security scan
 act -j build                  # Run build

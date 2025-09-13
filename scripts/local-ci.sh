@@ -20,9 +20,9 @@ run_step() {
     local step_name="$1"
     local step_command="$2"
     local optional="$3"
-    
+
     echo -e "${YELLOW}📋 $step_name${NC}"
-    
+
     if eval "$step_command"; then
         echo -e "${GREEN}✅ $step_name passed${NC}"
         echo ""

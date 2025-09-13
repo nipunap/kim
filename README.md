@@ -336,7 +336,7 @@ go test ./...                  # Unit tests
 go test ./internal/config -v   # Specific package
 ```
 
-For detailed local testing instructions, see [LOCAL_TESTING.md](LOCAL_TESTING.md).
+For detailed local testing instructions, see [LOCAL_TESTING.md](docs/LOCAL_TESTING.md).
 
 ### Contributing
 
