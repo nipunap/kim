@@ -7,6 +7,7 @@ Welcome to the Kim Kafka Management Tool documentation!
 ### Testing & Development
 - **[LOCAL_TESTING.md](LOCAL_TESTING.md)** - Comprehensive guide for testing GitHub Actions workflows locally
 - **[TESTING.md](TESTING.md)** - Complete testing strategy and test execution guide
+- **[TESTING_CHECKLIST.md](TESTING_CHECKLIST.md)** - Interactive mode testing checklist and QA guide
 
 ### Legal
 - **[LICENSE](../LICENSE)** - GPL-3.0 License details (kept in root for GitHub detection)
@@ -22,19 +23,21 @@ Welcome to the Kim Kafka Management Tool documentation!
 
 ```
 docs/
-├── README.md           # This file - documentation index
-├── LOCAL_TESTING.md    # Local GitHub Actions testing guide
-└── TESTING.md          # Comprehensive testing guide
+├── README.md              # This file - documentation index
+├── LOCAL_TESTING.md       # Local GitHub Actions testing guide
+├── TESTING.md             # Comprehensive testing guide
+└── TESTING_CHECKLIST.md   # Interactive mode testing checklist
 
-../LICENSE              # Project license (kept in root for GitHub)
+../LICENSE                 # Project license (kept in root for GitHub)
 ```
 
 ## 🚀 Getting Started
 
 1. **New to Kim?** Start with the [main README](../README.md)
 2. **Want to contribute?** Check out [TESTING.md](TESTING.md) for testing guidelines
-3. **Need to test locally?** See [LOCAL_TESTING.md](LOCAL_TESTING.md) for workflow testing
-4. **Legal questions?** Review the [LICENSE](../LICENSE) file
+3. **Testing interactive mode?** Use [TESTING_CHECKLIST.md](TESTING_CHECKLIST.md) for comprehensive QA
+4. **Need to test locally?** See [LOCAL_TESTING.md](LOCAL_TESTING.md) for workflow testing
+5. **Legal questions?** Review the [LICENSE](../LICENSE) file
 
 ## 💡 Need Help?
 

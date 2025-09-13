@@ -16,7 +16,7 @@ const (
 	kafkaBootstrapServers = "localhost:9092"
 	kafkaSASLServers      = "localhost:9093"
 	testTimeout           = 30 * time.Second
-	dockerComposeFile     = "../docker-compose.test.yml"
+	dockerComposeFile     = "docker-compose.test.yml"
 )
 
 // TestMain sets up and tears down the test environment

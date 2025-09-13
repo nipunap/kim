@@ -50,8 +50,8 @@ func NewInteractiveMode(cfg *config.Config, log *logger.Logger) *InteractiveMode
 
 // Run starts the interactive mode
 func (im *InteractiveMode) Run() error {
-	p := tea.NewProgram(im, 
-		tea.WithAltScreen(), 
+	p := tea.NewProgram(im,
+		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
 	_, err := p.Run()
@@ -109,19 +109,19 @@ func (im *InteractiveMode) View() string {
 		profile = im.cfg.ActiveProfile
 	}
 	headerText := fmt.Sprintf("Kim - Kafka Management Tool | Profile: %s | View: %s", profile, im.currentView)
-	
+
 	// Truncate header if too long for terminal width
 	if im.width > 0 && len(headerText) > im.width-4 {
 		headerText = headerText[:im.width-7] + "..."
 	}
-	
+
 	header := headerStyle.Width(im.width).Render(headerText)
 
 	// Build content with scrolling
 	contentLines := strings.Split(im.content, "\n")
 	visibleLines := im.getVisibleContent(contentLines)
 	content := strings.Join(visibleLines, "\n")
-	
+
 	// Ensure content fits within terminal width
 	if im.width > 0 {
 		contentStyle := lipgloss.NewStyle().Width(im.width - 2).MaxWidth(im.width - 2)
@@ -305,7 +305,7 @@ func (im *InteractiveMode) executeCommand(cmd string) (tea.Model, tea.Cmd) {
 	if cmd == "" {
 		return im, nil
 	}
-	
+
 	parts := strings.Fields(cmd)
 	if len(parts) == 0 {
 		return im, nil
