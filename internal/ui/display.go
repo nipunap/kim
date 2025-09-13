@@ -15,13 +15,18 @@ import (
 
 // DisplayTopicList displays a list of topics
 func DisplayTopicList(topicList *types.TopicList, opts *types.DisplayOptions) error {
+	if topicList == nil {
+		return fmt.Errorf("topic list cannot be nil")
+	}
 	switch opts.Format {
 	case "json":
 		return displayJSON(topicList)
 	case "yaml":
 		return displayYAML(topicList)
-	default:
+	case "table", "":
 		return displayTopicTable(topicList)
+	default:
+		return fmt.Errorf("invalid format: %s", opts.Format)
 	}
 }
 
@@ -39,6 +44,9 @@ func DisplayTopicDetails(details *types.TopicDetails, opts *types.DisplayOptions
 
 // DisplayGroupList displays a list of consumer groups
 func DisplayGroupList(groupList *types.GroupList, opts *types.DisplayOptions) error {
+	if groupList == nil {
+		return fmt.Errorf("group list cannot be nil")
+	}
 	switch opts.Format {
 	case "json":
 		return displayJSON(groupList)
@@ -63,37 +71,52 @@ func DisplayGroupDetails(details *types.GroupDetails, opts *types.DisplayOptions
 
 // DisplayMessage displays a single message
 func DisplayMessage(message *types.Message, opts *types.DisplayOptions) error {
+	if message == nil {
+		return fmt.Errorf("message cannot be nil")
+	}
 	switch opts.Format {
 	case "json":
 		return displayJSON(message)
 	case "yaml":
 		return displayYAML(message)
-	default:
+	case "table", "":
 		return displayMessageTable(message)
+	default:
+		return fmt.Errorf("invalid format: %s", opts.Format)
 	}
 }
 
 // DisplayProduceResponse displays the response from producing a message
 func DisplayProduceResponse(response *types.ProduceResponse, opts *types.DisplayOptions) error {
+	if response == nil {
+		return fmt.Errorf("produce response cannot be nil")
+	}
 	switch opts.Format {
 	case "json":
 		return displayJSON(response)
 	case "yaml":
 		return displayYAML(response)
-	default:
+	case "table", "":
 		return displayProduceResponseTable(response)
+	default:
+		return fmt.Errorf("invalid format: %s", opts.Format)
 	}
 }
 
 // DisplayProfileList displays a list of profiles
 func DisplayProfileList(profiles []*types.ProfileInfo, opts *types.DisplayOptions) error {
+	if profiles == nil {
+		return fmt.Errorf("profiles cannot be nil")
+	}
 	switch opts.Format {
 	case "json":
 		return displayJSON(profiles)
 	case "yaml":
 		return displayYAML(profiles)
-	default:
+	case "table", "":
 		return displayProfileTable(profiles)
+	default:
+		return fmt.Errorf("invalid format: %s", opts.Format)
 	}
 }
 
