@@ -297,12 +297,12 @@ make kafka-logs
 
 Check Kafka health:
 ```bash
-docker-compose -f docker-compose.test.yml exec kafka kafka-broker-api-versions --bootstrap-server localhost:9092
+docker-compose -f test/docker-compose.test.yml exec kafka kafka-broker-api-versions --bootstrap-server localhost:9092
 ```
 
 List topics manually:
 ```bash
-docker-compose -f docker-compose.test.yml exec kafka kafka-topics --bootstrap-server localhost:9092 --list
+docker-compose -f test/docker-compose.test.yml exec kafka kafka-topics --bootstrap-server localhost:9092 --list
 ```
 
 ## Contributing

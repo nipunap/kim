@@ -81,9 +81,9 @@ go test -v -race -coverprofile=coverage.out ./...
 ### Integration Tests
 ```bash
 # What the workflow does:
-docker-compose -f docker-compose.test.yml up -d --wait
+docker-compose -f test/docker-compose.test.yml up -d --wait
 cd test && go test -v -timeout=10m -tags=integration ./...
-docker-compose -f docker-compose.test.yml down -v
+docker-compose -f test/docker-compose.test.yml down -v
 ```
 
 ### Linting

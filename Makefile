@@ -90,34 +90,34 @@ test-all: test test-integration
 # Start Kafka cluster for development
 kafka-up:
 	@echo "Starting Kafka cluster for development..."
-	docker-compose -f docker-compose.test.yml up -d --wait
+	docker-compose -f test/docker-compose.test.yml up -d --wait
 	@echo "Kafka cluster started at localhost:9092"
 	@echo "Kafka UI available at http://localhost:8080 (run with --profile ui)"
 
 # Stop Kafka cluster
 kafka-down:
 	@echo "Stopping Kafka cluster..."
-	docker-compose -f docker-compose.test.yml down -v
+	docker-compose -f test/docker-compose.test.yml down -v
 	@echo "Kafka cluster stopped"
 
 # Start Kafka cluster with UI
 kafka-up-ui:
 	@echo "Starting Kafka cluster with UI..."
-	docker-compose -f docker-compose.test.yml --profile ui up -d --wait
+	docker-compose -f test/docker-compose.test.yml --profile ui up -d --wait
 	@echo "Kafka cluster started at localhost:9092"
 	@echo "Kafka UI available at http://localhost:8080"
 
 # Start SASL-enabled Kafka for authentication testing
 kafka-up-sasl:
 	@echo "Starting SASL-enabled Kafka cluster..."
-	docker-compose -f docker-compose.test.yml --profile sasl up -d --wait
+	docker-compose -f test/docker-compose.test.yml --profile sasl up -d --wait
 	@echo "SASL Kafka cluster started at localhost:9093"
 	@echo "Use username: testuser, password: testpass"
 
 # Show Kafka logs
 kafka-logs:
 	@echo "Showing Kafka logs..."
-	docker-compose -f docker-compose.test.yml logs -f kafka
+	docker-compose -f test/docker-compose.test.yml logs -f kafka
 
 # Reset Kafka cluster (clean restart)
 kafka-reset: kafka-down kafka-up
